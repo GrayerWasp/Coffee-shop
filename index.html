@@ -31,13 +31,9 @@
   const coffeeSelect = document.getElementById("coffee")
   const status = document.getElementById("status")
 
-  // Load coffees
   async function loadCoffees() {
     const { data, error } = await supabase.from("products").select("*")
-    if (error) {
-      status.textContent = "Error loading menu: " + error.message
-      return
-    }
+    if (error) { status.textContent = "Error: " + error.message; return }
     data.forEach(coffee => {
       const option = document.createElement("option")
       option.value = coffee.id_coffee
@@ -47,32 +43,38 @@
   }
   loadCoffees()
 
-  // Place order
   window.placeOrder = async function() {
     const name = document.getElementById("name").value
     const email = document.getElementById("email").value
     const phone = document.getElementById("phone").value
-    const coffee = coffeeSelect.value
+    const coffeeId = coffeeSelect.value
     const quantity = document.getElementById("quantity").value
 
-    // 1. Upsert customer: Create if new, return ID if existing
-    const { data: customer, error: customerError } = await supabase
+    // 1. Try to find the customer first
+    let { data: customer, error: fetchError } = await supabase
       .from("customers")
-      .upsert({ name_customer: name, email: email, phone: phone }, { onConflict: 'email' })
-      .select()
-      .single()
+      .select("*")
+      .eq("email", email)
+      .maybeSingle()
 
-    if (customerError) {
-      status.textContent = "Customer error: " + customerError.message
-      return
+    // 2. If not found, create the customer
+    if (!customer) {
+      const { data: newCustomer, error: insertError } = await supabase
+        .from("customers")
+        .insert({ name_customer: name, email: email, phone: phone })
+        .select()
+        .single()
+      
+      if (insertError) { status.textContent = "Error creating customer: " + insertError.message; return }
+      customer = newCustomer
     }
 
-    // 2. Insert order
+    // 3. Now insert the order using the customer's ID
     const { error: orderError } = await supabase
       .from("orders")
       .insert({
         id_customer: customer.id_customer,
-        id_product: coffee,
+        id_product: coffeeId,
         quantity: quantity,
         order_date: new Date().toISOString()
       })
@@ -80,7 +82,7 @@
     if (orderError) {
       status.textContent = "Order error: " + orderError.message
     } else {
-      status.textContent = "Order placed successfully!"
+      status.textContent = "Order placed!"
     }
   }
 </script>
