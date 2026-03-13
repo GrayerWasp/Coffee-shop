@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Coffee Orders</title>
+</head>
+
+<body>
+
+<h1>Order Coffee ☕</h1>
+
+<input id="name" placeholder="Your name"><br><br>
+<input id="email" placeholder="Email"><br><br>
+<input id="phone" placeholder="Phone"><br><br>
+
+<select id="coffee"></select><br><br>
+
+<input id="quantity" type="number" value="1" min="1"><br><br>
+
+<button onclick="placeOrder()">Order</button>
+
+<p id="status"></p>
+
+<script type="module">
+
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm"
+
+const supabaseUrl = "YOUR_URL"
+const supabaseKey = "YOUR_ANON_KEY"
+
+const supabase = createClient(supabaseUrl, supabaseKey)
+
+const coffeeSelect = document.getElementById("coffee")
+const status = document.getElementById("status")
+
+// Load coffees
+async function loadCoffees() {
+
+  const { data, error } = await supabase
+    .from("products")
+    .select("*")
+
+  if (error) {
+    status.textContent = error.message
+    return
+  }
+
+  data.forEach(coffee => {
+
+    const option = document.createElement("option")
+
+    option.value = coffee.id_coffee
+    option.textContent = coffee.name_coffee + " ($" + coffee.price + ")"
+
+    coffeeSelect.appendChild(option)
+
+  })
+
+}
+
+loadCoffees()
+
+// Place order
+window.placeOrder = async function() {
+
+  const name = document.getElementById("name").value
+  const email = document.getElementById("email").value
+  const phone = document.getElementById("phone").value
+  const coffee = coffeeSelect.value
+  const quantity = document.getElementById("quantity").value
+
+  // Insert customer
+  const { data: customer, error: customerError } = await supabase
+    .from("customers")
+    .insert({
+      name_customer: name,
+      email: email,
+      phone: phone
+    })
+    .select()
+    .single()
+
+  if (customerError) {
+    status.textContent = customerError.message
+    return
+  }
+
+  // Insert order
+  const { error: orderError } = await supabase
+    .from("orders")
+    .insert({
+      id_customer: customer.id_customer,
+      id_product: coffee,
+      quantity: quantity,
+      order_date: new Date().toISOString()
+    })
+
+  if (orderError) {
+    status.textContent = orderError.message
+  } else {
+    status.textContent = "Order placed!"
+  }
+
+}
+
+</script>
+
+</body>
+</html>
