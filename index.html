@@ -21,87 +21,68 @@
 <p id="status"></p>
 
 <script type="module">
+  import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm"
 
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm"
+  const supabaseUrl = "https://vgtfkmpyvewxgifbwngw.supabase.co"
+  const supabaseKey = "sb_publishable_eZvka1oXPDXY2mx5YmAzUw_zn76rqIn"
 
-const supabaseUrl = "https://vgtfkmpyvewxgifbwngw.supabase.co"
-const supabaseKey = "sb_publishable_eZvka1oXPDXY2mx5YmAzUw_zn76rqIn"
+  const supabase = createClient(supabaseUrl, supabaseKey)
 
-const supabase = createClient(supabaseUrl, supabaseKey)
+  const coffeeSelect = document.getElementById("coffee")
+  const status = document.getElementById("status")
 
-const coffeeSelect = document.getElementById("coffee")
-const status = document.getElementById("status")
-
-// Load coffees
-async function loadCoffees() {
-
-  const { data, error } = await supabase
-    .from("products")
-    .select("*")
-
-  if (error) {
-    status.textContent = error.message
-    return
-  }
-
-  data.forEach(coffee => {
-
-    const option = document.createElement("option")
-
-    option.value = coffee.id_coffee
-    option.textContent = coffee.name_coffee + " ($" + coffee.price + ")"
-
-    coffeeSelect.appendChild(option)
-
-  })
-
-}
-
-loadCoffees()
-
-// Place order
-window.placeOrder = async function() {
-
-  const name = document.getElementById("name").value
-  const email = document.getElementById("email").value
-  const phone = document.getElementById("phone").value
-  const coffee = coffeeSelect.value
-  const quantity = document.getElementById("quantity").value
-
-  // Insert customer
-  const { data: customer, error: customerError } = await supabase
-    .from("customers")
-    .insert({
-      name_customer: name,
-      email: email,
-      phone: phone
+  // Load coffees
+  async function loadCoffees() {
+    const { data, error } = await supabase.from("products").select("*")
+    if (error) {
+      status.textContent = "Error loading menu: " + error.message
+      return
+    }
+    data.forEach(coffee => {
+      const option = document.createElement("option")
+      option.value = coffee.id_coffee
+      option.textContent = coffee.name_coffee + " ($" + coffee.price + ")"
+      coffeeSelect.appendChild(option)
     })
-    .select()
-    .single()
-
-  if (customerError) {
-    status.textContent = customerError.message
-    return
   }
+  loadCoffees()
 
-  // Insert order
-  const { error: orderError } = await supabase
-    .from("orders")
-    .insert({
-      id_customer: customer.id_customer,
-      id_product: coffee,
-      quantity: quantity,
-      order_date: new Date().toISOString()
-    })
+  // Place order
+  window.placeOrder = async function() {
+    const name = document.getElementById("name").value
+    const email = document.getElementById("email").value
+    const phone = document.getElementById("phone").value
+    const coffee = coffeeSelect.value
+    const quantity = document.getElementById("quantity").value
 
-  if (orderError) {
-    status.textContent = orderError.message
-  } else {
-    status.textContent = "Order placed!"
+    // 1. Upsert customer: Create if new, return ID if existing
+    const { data: customer, error: customerError } = await supabase
+      .from("customers")
+      .upsert({ name_customer: name, email: email, phone: phone }, { onConflict: 'email' })
+      .select()
+      .single()
+
+    if (customerError) {
+      status.textContent = "Customer error: " + customerError.message
+      return
+    }
+
+    // 2. Insert order
+    const { error: orderError } = await supabase
+      .from("orders")
+      .insert({
+        id_customer: customer.id_customer,
+        id_product: coffee,
+        quantity: quantity,
+        order_date: new Date().toISOString()
+      })
+
+    if (orderError) {
+      status.textContent = "Order error: " + orderError.message
+    } else {
+      status.textContent = "Order placed successfully!"
+    }
   }
-
-}
-
 </script>
 
 </body>
